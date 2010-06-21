@@ -23,7 +23,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <strophe.h>
+#include "strophe.h"
 
 #include "common.h"
 #include "util.h"
@@ -92,6 +92,11 @@ xmpp_conn_t *xmpp_conn_new(xmpp_ctx_t * const ctx)
 	conn->send_queue_len = 0;
 	conn->send_queue_head = NULL;
 	conn->send_queue_tail = NULL;
+        conn->send_queue_mutex = mutex_create(conn->ctx);
+        if (!conn->send_queue_mutex) {
+	    xmpp_free(conn->ctx, conn);
+            return NULL;
+        }
 
 	/* default timeouts */
 	conn->connect_timeout = CONNECT_TIMEOUT;
@@ -265,15 +270,18 @@ int xmpp_conn_release(xmpp_conn_t * const conn)
 	}
 
         parser_free(conn->parser);
+
+        /* Free mutex for send queue */
+        mutex_destroy(conn->send_queue_mutex);
 	
-	if (conn->domain) xmpp_free(ctx, conn->domain);
-	if (conn->jid) xmpp_free(ctx, conn->jid);
-    if (conn->bound_jid) xmpp_free(ctx, conn->bound_jid);
-	if (conn->pass) xmpp_free(ctx, conn->pass);
-	if (conn->stream_id) xmpp_free(ctx, conn->stream_id);
-	if (conn->lang) xmpp_free(ctx, conn->lang);
-	xmpp_free(ctx, conn);
-	released = 1;
+        if (conn->domain) xmpp_free(ctx, conn->domain);
+        if (conn->jid) xmpp_free(ctx, conn->jid);
+        if (conn->bound_jid) xmpp_free(ctx, conn->bound_jid);
+        if (conn->pass) xmpp_free(ctx, conn->pass);
+        if (conn->stream_id) xmpp_free(ctx, conn->stream_id);
+        if (conn->lang) xmpp_free(ctx, conn->lang);
+        xmpp_free(ctx, conn);
+        released = 1;
     }
 
     return released;
@@ -585,26 +593,29 @@ void xmpp_send_raw_string(xmpp_conn_t * const conn,
  *  @param data a buffer of raw bytes
  *  @param len the length of the data in the buffer
  */
-void xmpp_send_raw(xmpp_conn_t * const conn,
+int xmpp_send_raw(xmpp_conn_t * const conn,
 		   const char * const data, const size_t len)
 {
     xmpp_send_queue_t *item;
 
-    if (conn->state != XMPP_STATE_CONNECTED) return;
+    if (conn->state != XMPP_STATE_CONNECTED) return XMPP_ENOTCONN;
 
     /* create send queue item for queue */
     item = xmpp_alloc(conn->ctx, sizeof(xmpp_send_queue_t));
-    if (!item) return;
+    if (!item) return XMPP_EMEM;
 
     item->data = xmpp_alloc(conn->ctx, len);
     if (!item->data) {
 	xmpp_free(conn->ctx, item);
-	return;
+	return XMPP_EMEM;
     }
     memcpy(item->data, data, len);
     item->len = len;
     item->next = NULL;
     item->written = 0;
+
+    /* Lock to protect send queue operations */
+    if (!mutex_lock(conn->send_queue_mutex)) return XMPP_EMUTEX;
 
     /* add item to the send queue */
     if (!conn->send_queue_tail) {
@@ -617,6 +628,10 @@ void xmpp_send_raw(xmpp_conn_t * const conn,
 	conn->send_queue_tail = item;
     }
     conn->send_queue_len++;
+
+    if (!mutex_unlock(conn->send_queue_mutex)) return XMPP_EMUTEX;
+
+    return XMPP_EOK;
 }
 
 /** Send an XML stanza to the XMPP server.
@@ -628,20 +643,22 @@ void xmpp_send_raw(xmpp_conn_t * const conn,
  *
  *  @ingroup Connections
  */
-void xmpp_send(xmpp_conn_t * const conn,
-	       xmpp_stanza_t * const stanza)
+int xmpp_send(xmpp_conn_t * const conn,
+              xmpp_stanza_t * const stanza)
 {
     char *buf;
     size_t len;
-    int ret;
+    int ret = XMPP_EOK;
 
     if (conn->state == XMPP_STATE_CONNECTED) {
-	if ((ret = xmpp_stanza_to_text(stanza, &buf, &len)) == 0) {
-	    xmpp_send_raw(conn, buf, len);
-	    xmpp_debug(conn->ctx, "conn", "SENT: %s", buf);
+	ret = xmpp_stanza_to_text(stanza, &buf, &len);
+	if (XMPP_EOK == ret) {
+	    ret = xmpp_send_raw(conn, buf, len);
+            xmpp_debug(conn->ctx, "conn", "SENT: %s, error: %d", buf, ret);
 	    xmpp_free(conn->ctx, buf);
 	}
     }
+    return ret;
 }
 
 /** Send the opening &lt;stream:stream&gt; tag to the server.

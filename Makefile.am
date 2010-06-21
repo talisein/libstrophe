@@ -1,6 +1,6 @@
 AUTOMAKE_OPTIONS = subdir-objects
 
-AM_CFLAGS = -g -Wall
+AM_CFLAGS = -g -Wall -fPIC
 ACLOCAL_AMFLAGS = -I m4
 
 PARSER_CFLAGS=@PARSER_CFLAGS@
@@ -14,7 +14,7 @@ lib_LTLIBRARIES = libstrophe.la
 ## Main build targets
 
 libstrophe_la_CFLAGS = $(STROPHE_FLAGS) $(PARSER_CFLAGS)
-libstrophe_la_include_HEADERS = strophe.h
+libstrophe_la_include_HEADERS = strophe.h strophepp.h
 libstrophe_la_includedir = $(includedir)
 libstrophe_la_SOURCES = src/auth.c src/conn.c src/ctx.c \
 	src/event.c src/handler.c src/hash.c \

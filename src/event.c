@@ -47,7 +47,7 @@
 #define ECONNABORTED WSAECONNABORTED
 #endif
 
-#include <strophe.h>
+#include "strophe.h"
 #include "common.h"
 #include "parser.h"
 
@@ -111,6 +111,12 @@ void xmpp_run_once(xmpp_ctx_t *ctx, const unsigned long timeout)
 	    }
 	}
 
+        /* Protect send queue operations with mutex */
+        if (!mutex_lock(conn->send_queue_mutex)) {
+            xmpp_debug(ctx, "xmpp", "Failed to lock send queue mutex.");
+            connitem = connitem->next;
+            continue;
+        }
 	/* write all data from the send queue to the socket */
 	sq = conn->send_queue_head;
 	while (sq) {
@@ -154,6 +160,9 @@ void xmpp_run_once(xmpp_ctx_t *ctx, const unsigned long timeout)
 	    /* if we've sent everything update the tail */
 	    if (!sq) conn->send_queue_tail = NULL;
 	}
+
+        /* Unlock mutex for send queue */
+        mutex_unlock(conn->send_queue_mutex);
 
 	/* tear down connection on error */
 	if (conn->error) {

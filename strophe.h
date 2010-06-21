@@ -98,6 +98,14 @@ extern "C" {
  *  Internal failure error code.
  */
 #define XMPP_EINT -3
+/** @def XMPP_ENOTCONN
+ *  Cannot carry out operation because must be connected to server.
+ */
+#define XMPP_ENOTCONN -4
+/** @def XMPP_EMUTEX
+ *  Error trying to access mutex
+ */
+#define XMPP_EMUTEX -5
 
 /* initialization and shutdown */
 void xmpp_initialize(void);
@@ -229,12 +237,12 @@ int xmpp_connect_component(conn, name)
 */
 void xmpp_disconnect(xmpp_conn_t * const conn);
 
-void xmpp_send(xmpp_conn_t * const conn,
+int xmpp_send(xmpp_conn_t * const conn,
 	       xmpp_stanza_t * const stanza);
 
 void xmpp_send_raw_string(xmpp_conn_t * const conn, 
 			  const char * const fmt, ...);
-void xmpp_send_raw(xmpp_conn_t * const conn, 
+int xmpp_send_raw(xmpp_conn_t * const conn, 
 		   const char * const data, const size_t len);
 
 
@@ -365,6 +373,15 @@ void xmpp_presence_new();
 void xmpp_run_once(xmpp_ctx_t *ctx, const unsigned long  timeout);
 void xmpp_run(xmpp_ctx_t *ctx);
 void xmpp_stop(xmpp_ctx_t *ctx);
+
+/** jid helpers **/
+char *xmpp_jid_new(xmpp_ctx_t *ctx, const char *node,
+                                    const char *domain,
+                                    const char *resource);
+char *xmpp_jid_bare(xmpp_ctx_t *ctx, const char *jid);
+char *xmpp_jid_node(xmpp_ctx_t *ctx, const char *jid);
+char *xmpp_jid_domain(xmpp_ctx_t *ctx, const char *jid);
+char *xmpp_jid_resource(xmpp_ctx_t *ctx, const char *jid);
 
 #ifdef __cplusplus
 }

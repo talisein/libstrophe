@@ -23,7 +23,7 @@
 #include <libxml/parser.h>
 #include <libxml/tree.h>
 
-#include <strophe.h>
+#include "strophe.h"
 #include "common.h"
 #include "parser.h"
 
@@ -202,5 +202,8 @@ int parser_reset(parser_t *parser)
 /* feed a chunk of data to the parser */
 int parser_feed(parser_t *parser, char *chunk, int len)
 {
-    return xmlParseChunk(parser->xmlctx, chunk, len, 0);
+    if (XML_ERR_OK == xmlParseChunk(parser->xmlctx, chunk, len, 0))
+       return 1;
+    else 
+       return 0;
 }
