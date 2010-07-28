@@ -8,7 +8,7 @@ Our goals are:
 
 == Build Instructions ==
 
-	./bootstrap.sh
+	./autogen.sh
 	./configure.sh [options]
 	make
 	make install
