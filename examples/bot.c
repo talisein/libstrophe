@@ -103,6 +103,7 @@ int message_handler(xmpp_conn_t * const conn, xmpp_stanza_t * const stanza, void
 	xmpp_send(conn, reply);
 	xmpp_stanza_release(reply);
 	free(replytext);
+	xmpp_free(ctx, intext);
 	return 1;
 }
 
